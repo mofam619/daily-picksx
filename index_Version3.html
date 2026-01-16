@@ -1,0 +1,83 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Today's Bet Options</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <style>
+      body{font-family:Arial,system-ui;background:#111;color:#0f0;text-align:center;padding:20px}
+      .card{background:#222;margin:10px auto;padding:15px;border-radius:8px;max-width:350px}
+      h1{color:#fff}
+      .safe{color:#7cfc00}.mid{color:#ffd700}.risk{color:#ff4500}
+      .muted{color:#999;font-size:0.9em}
+    </style>
+  </head>
+  <body>
+    <h1>Today's Bet Options</h1>
+    <div id="box" class="muted">Loading fixtures…</div>
+
+    <script>
+      (async function(){
+        const box = document.getElementById('box');
+        try {
+          const today = new Date().toISOString().slice(0,10);
+          const url = `https://www.thesportsdb.com/api/v1/json/3/eventsday.php?d=${encodeURIComponent(today)}&s=Soccer`;
+          const res = await fetch(url);
+          if (!res.ok) throw new Error('Network response not ok');
+          const data = await res.json();
+          const ev = data.events;
+          if (!ev || ev.length === 0){ box.innerHTML = 'No games today'; return; }
+
+          // helper: assign fake odds (lower = safer). Add small randomness to avoid ties.
+          const withOdds = ev.map(m=>{
+            const homeLen = (m.strHomeTeam || '').length;
+            const base = 1.25 + (homeLen % 7)*0.05 + Math.random()*0.2;
+            return { ...m, home:base, draw:base+0.7+Math.random()*0.2, away:base+0.9+Math.random()*0.3 };
+          });
+
+          // 1) SAFEST  2) MEDIUM  3) HIGH-ODDS
+          const safest = withOdds.reduce((a,b)=> a.home < b.home ? a : b);
+          const medium = withOdds.reduce((a,b)=> a.draw < b.draw ? a : b);
+          const risk   = withOdds.reduce((a,b)=> a.away < b.away ? a : b);
+
+          const html = `
+            <div class="card safe">
+              <b>SAFE (low odds)</b><br>
+              Double Chance: ${escapeHtml(safest.strHomeTeam)} vs ${escapeHtml(safest.strAwayTeam)} (1X)<br>
+              ~${safest.home.toFixed(2)}
+            </div>
+            <div class="card mid">
+              <b>MEDIUM</b><br>
+              Draw: ${escapeHtml(medium.strHomeTeam)} vs ${escapeHtml(medium.strAwayTeam)}<br>
+              ~${medium.draw.toFixed(2)}
+            </div>
+            <div class="card risk">
+              <b>HIGHER ODDS</b><br>
+              Away Win: ${escapeHtml(risk.strAwayTeam)} at ${escapeHtml(risk.strHomeTeam)}<br>
+              ~${risk.away.toFixed(2)}
+            </div>
+            <div class="muted" style="margin-top:8px">Data from TheSportsDB • Odds are simulated</div>`;
+          box.innerHTML = html;
+        } catch (err) {
+          console.error(err);
+          box.textContent = 'Error loading fixtures';
+        }
+
+        // minimal HTML escaping helper
+        function escapeHtml(s){ return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+      })();
+    </script>
+  </body>
+</html>
+````markdown name=README.md
+# Daily Pick
+
+Simple static site showing "safe", "medium", and "higher odds" picks for today's soccer matches using TheSportsDB eventsday API.
+
+Notes
+- Odds shown are simulated / illustrative only.
+- This is a static HTML app and can be hosted with GitHub Pages.
+
+How to test locally
+- `python -m http.server 8000` then open http://localhost:8000
+- or `npx serve` if you have Node.js installed.
